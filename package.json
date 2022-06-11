@@ -1,0 +1,14 @@
+{
+  "name": "web-fluids-app",
+  "version": "1.0.0",
+  "scripts": {
+    "watch": "tsc -w -p tsconfig.json & rollup -w -c rollup.config.js",
+    "build": "tsc -p tsconfig.json && rollup -c rollup.config.js"
+  },
+  "dependencies": {
+  },
+  "devDependencies": {
+    "typescript": "^4.7.3",
+    "rollup": "^2.75.6"
+  }
+}
