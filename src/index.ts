@@ -2,7 +2,7 @@ const canvas = document.getElementById("view") as HTMLCanvasElement;
 const dpr = window.devicePixelRatio;
 const w = canvas.width;
 const h = canvas.height;
-const globalScale = 8.0;
+const globalScale = 4.0;
 canvas.style.width = Math.round(w * globalScale / dpr) + "px";
 canvas.style.height = Math.round(h * globalScale / dpr) + "px";
 const ctx = canvas.getContext("2d", {alpha: false});
@@ -40,7 +40,7 @@ const DIFFUSION = 0.000001;
 let startX = 0.0;
 let startY = 0.0;
 
-function clamp(v:number, min:number, max:number) {
+function clamp(v: number, min: number, max: number) {
     return v <= max ? (v >= min ? v : min) : max;
 }
 
@@ -65,42 +65,42 @@ class Fluid {
         this.ys.fill(0.0);
     }
 
-    addSourceDensity(amount:number, x:number, y:number) {
+    addSourceDensity(amount: number, x: number, y: number) {
         this.set(this.densityPrev, x | 0, y | 0, amount);
     }
 
-    addSourceVelocity(force:number, dx:number, dy:number, x:number, y:number) {
+    addSourceVelocity(force: number, dx: number, dy: number, x: number, y: number) {
         this.set(this.xsPrev, x | 0, y | 0, force * dx);
         this.set(this.ysPrev, x | 0, y | 0, force * dy);
     }
 
-    addSource(dst:Float32Array, src:Float32Array, dt:number) {
+    addSource(dst: Float32Array, src: Float32Array, dt: number) {
         for (let i = 0; i < dst.length; ++i) {
             dst[i] += src[i] * dt;
         }
     }
 
-    calcNeighbourSum(arr:Float32Array, x:number, y:number) {
+    calcNeighbourSum(arr: Float32Array, x: number, y: number) {
         const i = y * w + x;
         return arr[i - w] + arr[i - 1] + arr[i + 1] + arr[i + w];
     }
 
-    get(arr:Float32Array, x:number, y:number) {
+    get(arr: Float32Array, x: number, y: number) {
         //if (x >= w || y < 0 || y >= h || x < 0) throw new Error("out of bounds");
         return arr[y * w + x];
     }
 
-    set(arr:Float32Array, x:number, y:number, v:number) {
+    set(arr: Float32Array, x: number, y: number, v: number) {
         //if (x >= w || y < 0 || y >= h || x < 0) throw new Error("out of bounds");
         arr[y * w + x] = v;
     }
 
-    add(arr:Float32Array, x:number, y:number, v:number) {
+    add(arr: Float32Array, x: number, y: number, v: number) {
         //if (x >= w || y < 0 || y >= h || x < 0) throw new Error("out of bounds");
         arr[y * w + x] += v;
     }
 
-    setBounds(source:Float32Array, b:number) {
+    setBounds(source: Float32Array, b: number) {
         const sizeX = w - 1;
         const sizeY = h - 1;
         const fx = b === 1 ? -1.0 : 1.0;
@@ -119,7 +119,7 @@ class Fluid {
         this.set(source, sizeX, sizeY, 0.5 * (this.get(source, sizeX - 1, sizeY) + this.get(source, sizeX, sizeY - 1)));
     }
 
-    diffuse(cur:Float32Array, prev:Float32Array, diff:number, dt:number, iterations:number, b:number) {
+    diffuse(cur: Float32Array, prev: Float32Array, diff: number, dt: number, iterations: number, b: number) {
         const sizeX = w - 1;
         const sizeY = h - 1;
         const ratio = dt * diff * (sizeX - 1) * (sizeY - 1);
@@ -133,7 +133,7 @@ class Fluid {
         }
     }
 
-    advect(current:Float32Array, previous:Float32Array, velocityX:Float32Array, velocityY:Float32Array, dt:number, b:number) {
+    advect(current: Float32Array, previous: Float32Array, velocityX: Float32Array, velocityY: Float32Array, dt: number, b: number) {
         const sizeX = w - 1;
         const sizeY = h - 1;
         const dtRatio = dt * (Math.min(sizeX, sizeY) - 1.0);
@@ -156,17 +156,17 @@ class Fluid {
         this.setBounds(current, b);
     }
 
-    horizontalDifference(source:Float32Array, x:number, y:number) {
+    horizontalDifference(source: Float32Array, x: number, y: number) {
         const i = y * w + x;
         return -source[i - w] + source[i + w];
     }
 
-    verticalDifference(source:Float32Array, x:number, y:number) {
+    verticalDifference(source: Float32Array, x: number, y: number) {
         const i = y * w + x;
         return -source[i - 1] + source[i + 1];
     }
 
-    project(currentX:Float32Array, currentY:Float32Array, previousX:Float32Array, previousY:Float32Array, iterations:number) {
+    project(currentX: Float32Array, currentY: Float32Array, previousX: Float32Array, previousY: Float32Array, iterations: number) {
         const sizeX = w - 1;
         const sizeY = h - 1;
         const unitSize = Math.min(sizeX, sizeY) - 1.0;
@@ -197,13 +197,13 @@ class Fluid {
         this.setBounds(currentY, 2);
     }
 
-    densityStep(diffusion:number, dt:number) {
+    densityStep(diffusion: number, dt: number) {
         this.addSource(this.density, this.densityPrev, dt);
         this.diffuse(this.densityPrev, this.density, diffusion, dt, 20, 0);
         this.advect(this.density, this.densityPrev, this.xs, this.ys, dt, 0);
     }
 
-    velocityStep(viscosity:number, dt:number) {
+    velocityStep(viscosity: number, dt: number) {
         this.addSource(this.xs, this.xsPrev, dt);
         this.addSource(this.ys, this.ysPrev, dt);
         this.diffuse(this.xsPrev, this.xs, viscosity, dt, 20, 1);
@@ -218,7 +218,7 @@ class Fluid {
 
 const fluid = new Fluid();
 
-const update = (dt:number) => {
+const update = (dt: number) => {
     dt *= 0.1 / (1.0 / 60.0);
     fluid.clearPrevious();
     let mx = mouseX | 0;
@@ -238,38 +238,33 @@ const update = (dt:number) => {
     fluid.densityStep(DIFFUSION, dt);
 
     if (ctx) {
-        ctx.globalAlpha = 1.0;
-        ctx.fillStyle = "black";
-        ctx.fillRect(0, 0, w, h);
-
-        ctx.fillStyle = "white";
-        for (let i = 0; i < h; ++i) {
-            for (let j = 0; j < w; ++j) {
-                let d = fluid.density[i * w + j];// / (4.0 * Math.sqrt((w-1) * (h-1)));
-                while (d > 4.0) {
-                    d -= 3.0;
-                }
-                if (d > 3.0) {
-                    ctx.fillStyle = "red";
-                } else if (d > 2.0) {
-                    ctx.fillStyle = "yellow";
-                } else if (d > 1.0) {
-                    ctx.fillStyle = "green";
-                } else if (d > 0.0) {
-                    ctx.fillStyle = "white";
-                } else {
-                    d = -d;
-                    ctx.fillStyle = "blue";
-                }
-                ctx.globalAlpha = d > 1.0 ? 1.0 : d;
-                ctx.fillRect(j, i, 1, 1);
+        const density = fluid.density;
+        const image = ctx.getImageData(0, 0, w - 1, h - 1);
+        let i_ptr = 0;
+        let d_ptr = 0;
+        for (let i = 0; i < h - 1; ++i) {
+            for (let j = 0; j < w - 1; ++j) {
+                const d = 0.25 * (density[d_ptr] +
+                    density[d_ptr + 1] +
+                    density[d_ptr + w] +
+                    density[d_ptr + w + 1]);
+                const p = (255.0 * d) | 0;
+                image.data[i_ptr++] = p;
+                image.data[i_ptr++] = p;
+                image.data[i_ptr++] = p;
+                image.data[i_ptr++] = 255;
+                ++d_ptr;
             }
+            ++d_ptr;
+            //ptr += 4;
+            //++d_ptr;
         }
+        ctx.putImageData(image, 0, 0);
     }
 };
 
 let prevTime = 0;
-const raf = (ts:DOMHighResTimeStamp) => {
+const raf = (ts: DOMHighResTimeStamp) => {
     requestAnimationFrame(raf);
 
     update((ts - prevTime) / 1000.0);
