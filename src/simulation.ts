@@ -1,0 +1,217 @@
+import {Fluid2d, h, w} from "./fluid2d";
+
+export class Simulation {
+    canvas: HTMLCanvasElement;
+    ctx: CanvasRenderingContext2D;
+    fluid: Fluid2d;
+    globalScale: number = 4.0;
+    spawnAmount = 50.0 * 6.0 * 10.0;
+    spawnForce = 60.0 * w;
+    r: number = 0.0;
+    g: number = 0.0;
+    b: number = 0.0;
+
+    on_globalScale() {
+        const dpr = window.devicePixelRatio;
+        this.canvas.style.width = Math.round(w * this.globalScale / dpr) + "px";
+        this.canvas.style.height = Math.round(h * this.globalScale / dpr) + "px";
+    }
+
+    constructor(id: string) {
+        this.canvas = document.getElementById(id) as HTMLCanvasElement;
+        this.canvas.width = w;
+        this.canvas.height = h;
+        this.on_globalScale();
+
+        this.ctx = this.canvas.getContext("2d", {alpha: false})!;
+        this.fluid = new Fluid2d();
+
+        this.canvas.onmousedown = (e) => {
+            const dpr = window.devicePixelRatio;
+            this.mousePushed = true;
+            const bb = this.canvas.getBoundingClientRect();
+            this.mouseX = ((e.clientX - bb.x) * (dpr / this.globalScale)) | 0;
+            this.mouseY = ((e.clientY - bb.y) * (dpr / this.globalScale)) | 0;
+            this.startX = this.mouseX;
+            this.startY = this.mouseY;
+            this.r = Math.random();
+            this.g = Math.random();
+            this.b = Math.random();
+        };
+
+        this.canvas.onmouseup = (e) => {
+            this.mousePushed = false;
+        };
+
+        this.canvas.onmousemove = (e) => {
+            const dpr = window.devicePixelRatio;
+            const bb = this.canvas.getBoundingClientRect();
+            this.mouseX = (e.clientX - bb.x) * (dpr / this.globalScale) | 0;
+            this.mouseY = (e.clientY - bb.y) * (dpr / this.globalScale) | 0;
+        };
+
+        for (let i = 0; i < h; ++i) {
+            this.fluid.blocked[i * w] = 1;
+            this.fluid.blocked[i * w + w - 1] = 1;
+        }
+        for (let i = 0; i < w; ++i) {
+            this.fluid.blocked[i] = 1;
+            this.fluid.blocked[(h - 1) * w + i] = 1;
+        }
+        for (let i = 0; i < 20; ++i) {
+            const x = ((w / 2 - 1)) | 0;
+            const y = ((h / 2 - 1) + i) | 0;
+            this.fluid.blocked[y * w + x] = 1;
+        }
+        for (let i = 0; i < 20; ++i) {
+            const x = ((w / 2 - 1) - i) | 0;
+            const y = ((h / 2 - 1)) | 0;
+            this.fluid.blocked[y * w + x] = 1;
+        }
+
+        for (let i = 0; i < 70; ++i) {
+            const x = i | 0;
+            const y = ((h / 3 - 1)) | 0;
+            this.fluid.blocked[y * w + x] = 1;
+        }
+
+        for (let i = 0; i < 70; ++i) {
+            const x = i | 0;
+            const y = ((h / 3 + 40)) | 0;
+            this.fluid.blocked[y * w + x] = 1;
+        }
+
+        for (let i = 0; i < 70; ++i) {
+            const x = 50 + i | 0;
+            const y = ((h / 3 + 30)) | 0;
+            this.fluid.blocked[y * w + x] = 1;
+        }
+
+        for (let i = 0; i < 70; ++i) {
+            const x = 40 + i | 0;
+            const y = ((h / 3 + 10 - 1)) | 0;
+            this.fluid.blocked[y * w + x] = 1;
+        }
+
+        for (let i = 0; i < 20; ++i) {
+            const x = ((w / 4 - 1)) | 0;
+            const y = ((h / 4 - 1) - i) | 0;
+            this.fluid.blocked[y * w + x] = 1;
+        }
+        for (let i = 0; i < 20; ++i) {
+            const x = ((w / 4 - 1) + i) | 0;
+            const y = ((h / 4 - 1)) | 0;
+            this.fluid.blocked[y * w + x] = 1;
+        }
+    }
+
+    mousePushed = false;
+    mouseX = 0;
+    mouseY = 0;
+    startX = 0;
+    startY = 0;
+
+    update(dt: number) {
+        this.fluid.clearPrevious();
+        this.fluid.updateForces(dt);
+        // this.fluid.addSourceDensity(500, w / 4, h / 4);
+        // this.fluid.addSourceVelocity(FORCE, 5, 0, w / 4, h / 4);
+        let mx = this.mouseX | 0;
+        let my = this.mouseY | 0;
+        if (this.mousePushed && (mx !== this.startX || my !== this.startY)) {
+            if (mx > 0 && mx < w - 1 && my > 0 && my < h - 1) {
+                const fx = mx - this.startX;
+                const fy = my - this.startY;
+                const len = Math.sqrt(fx * fx + fy * fy);
+                const n = (len | 0) + 1;
+                let x = this.startX;
+                let y = this.startY;
+                let dx = (mx - this.startX) / n;
+                let dy = (my - this.startY) / n;
+                for (let i = 0; i < n + 1; ++i) {
+                    const ij = (y | 0) * w + (x | 0);
+                    if (this.fluid.blocked[ij] !== 0) continue;
+                    this.fluid.addSourceDensity(this.spawnAmount / n, x | 0, y | 0);
+                    this.fluid.addSourceVelocity(this.spawnForce / n, fx, fy, x | 0, y | 0);
+                    if (this.fluid.blocked[ij - 1] === 0) {
+                        this.fluid.r0[ij - 1] = this.r;
+                        this.fluid.g0[ij - 1] = this.g;
+                        this.fluid.b0[ij - 1] = this.b;
+                    }
+                    if (this.fluid.blocked[ij - w] === 0) {
+                        this.fluid.r0[ij - w] = this.r;
+                        this.fluid.g0[ij - w] = this.g;
+                        this.fluid.b0[ij - w] = this.b;
+                    }
+                    if (this.fluid.blocked[ij - w - 1] === 0) {
+                        this.fluid.r0[ij - w - 1] = this.r;
+                        this.fluid.g0[ij - w - 1] = this.g;
+                        this.fluid.b0[ij - w - 1] = this.b;
+                    }
+                    this.fluid.r0[ij] = this.r;
+                    this.fluid.g0[ij] = this.g;
+                    this.fluid.b0[ij] = this.b;
+                    if (this.fluid.blocked[ij + 1] === 0) {
+                        this.fluid.r0[ij + 1] = this.r;
+                        this.fluid.g0[ij + 1] = this.g;
+                        this.fluid.b0[ij + 1] = this.b;
+                    }
+                    if (this.fluid.blocked[ij + w] === 0) {
+                        this.fluid.r0[ij + w] = this.r;
+                        this.fluid.g0[ij + w] = this.g;
+                        this.fluid.b0[ij + w] = this.b;
+                    }
+                    if (this.fluid.blocked[ij + w + 1] === 0) {
+                        this.fluid.r0[ij + w + 1] = this.r;
+                        this.fluid.g0[ij + w + 1] = this.g;
+                        this.fluid.b0[ij + w + 1] = this.b;
+                    }
+                    x += dx;
+                    y += dy;
+                }
+                this.startX = mx;
+                this.startY = my;
+            }
+        }
+
+        this.fluid.velocityStep(dt);
+        this.fluid.densityStep(dt);
+
+    }
+
+    drawPixels(data: Uint8ClampedArray) {
+        const dens = this.fluid.density;
+        const blocked = this.fluid.blocked;
+        const r0 = this.fluid.r0;
+        const g0 = this.fluid.g0;
+        const b0 = this.fluid.b0;
+        let i_ptr = 0;
+        let d_ptr = 0;
+        for (let i = 0; i < h; ++i) {
+            for (let j = 0; j < w; ++j) {
+                let d = Math.min(1.0, 0.5 + dens[d_ptr]);
+                if (blocked[d_ptr] !== 0) {
+                    data[i_ptr++] = 255;
+                    data[i_ptr++] = 255;
+                    data[i_ptr++] = 255;
+                    data[i_ptr++] = 255;
+                } else {
+                    data[i_ptr++] = d * 255 * r0[d_ptr];
+                    data[i_ptr++] = d * 255 * g0[d_ptr];
+                    data[i_ptr++] = d * 255 * b0[d_ptr];
+                    data[i_ptr++] = 255;
+                }
+                ++d_ptr;
+            }
+            //++d_ptr;
+        }
+    }
+
+    draw() {
+        if (this.ctx) {
+            const image = this.ctx.getImageData(0, 0, w, h);
+            this.drawPixels(image.data);
+            this.ctx.putImageData(image, 0, 0);
+        }
+    }
+}
