@@ -2,6 +2,8 @@
 
 Jos Stam's famous fluid solver
 
+![preview](preview.gif)
+
 ## References
 
 - https://github.com/woeishi/StableFluids
