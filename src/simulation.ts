@@ -1,15 +1,95 @@
 import {Fluid2d, h, w} from "./fluid2d";
+import {hue, Vec4} from "./vec4";
+
+export class SimulationCanvasRenderer {
+    ctx: CanvasRenderingContext2D;
+
+    constructor(readonly canvas: HTMLCanvasElement) {
+        this.ctx = this.canvas.getContext("2d", {alpha: false})!;
+    }
+
+    drawColors(fluid: Fluid2d) {
+        if (this.ctx) {
+            const image = this.ctx.getImageData(0, 0, w, h);
+            this._drawColors(fluid, image.data);
+            // this._drawVelocity(fluid, image.data);
+            this.ctx.putImageData(image, 0, 0);
+        }
+    }
+
+    _drawColors(fluid: Fluid2d, data: Uint8ClampedArray) {
+        const dens = fluid.density;
+        const blocked = fluid.blocked;
+        const r0 = fluid.r0;
+        const g0 = fluid.g0;
+        const b0 = fluid.b0;
+        let i_ptr = 0;
+        let d_ptr = 0;
+        for (let i = 0; i < h; ++i) {
+            for (let j = 0; j < w; ++j) {
+                let d = Math.min(1.0, 0.5 + dens[d_ptr]);
+                if (blocked[d_ptr] !== 0) {
+                    data[i_ptr++] = 255;
+                    data[i_ptr++] = 255;
+                    data[i_ptr++] = 255;
+                    data[i_ptr++] = 255;
+                } else {
+                    data[i_ptr++] = d * 255 * r0[d_ptr];
+                    data[i_ptr++] = d * 255 * g0[d_ptr];
+                    data[i_ptr++] = d * 255 * b0[d_ptr];
+                    data[i_ptr++] = 255;
+                }
+                ++d_ptr;
+            }
+            //++d_ptr;
+        }
+    }
+
+    _drawVelocity(fluid: Fluid2d, data: Uint8ClampedArray) {
+        const blocked = fluid.blocked;
+        const u = fluid.u;
+        const v = fluid.v;
+        let i_ptr = 0;
+        let d_ptr = 0;
+        const color = new Vec4(0.0, 0.0, 0.0, 1.0);
+        for (let i = 0; i < h; ++i) {
+            for (let j = 0; j < w; ++j) {
+                if (blocked[d_ptr] !== 0) {
+                    data[i_ptr++] = 255;
+                    data[i_ptr++] = 255;
+                    data[i_ptr++] = 255;
+                    data[i_ptr++] = 255;
+                } else {
+                    const vx = u[d_ptr];
+                    const vy = v[d_ptr];
+                    // Map [-Pi, Pi] to [0, 1]
+                    const angle = 0.5 + (0.5 / Math.PI) * Math.atan2(vy, vx);
+                    // velocity range [0, 255]
+                    const unit = Math.sqrt(vx * vx + vy * vy) * 20.0;
+                    hue(color, angle);
+                    data[i_ptr++] = unit * color.x;
+                    data[i_ptr++] = unit * color.y;
+                    data[i_ptr++] = unit * color.z;
+                    data[i_ptr++] = 255;
+                }
+                ++d_ptr;
+            }
+            //++d_ptr;
+        }
+    }
+}
 
 export class Simulation {
     canvas: HTMLCanvasElement;
-    ctx: CanvasRenderingContext2D;
+    renderer: SimulationCanvasRenderer;
+
     fluid: Fluid2d;
     globalScale: number = 4.0;
     spawnAmount = 50.0 * 6.0 * 10.0;
     spawnForce = 60.0 * w;
-    r: number = 0.0;
-    g: number = 0.0;
-    b: number = 0.0;
+    readonly color = new Vec4(1.0, 1.0, 1.0, 1.0);
+    colorTime = 0.0;
+    colorSpeed = 0.2;
 
     on_globalScale() {
         const dpr = window.devicePixelRatio;
@@ -22,9 +102,8 @@ export class Simulation {
         this.canvas.width = w;
         this.canvas.height = h;
         this.on_globalScale();
-
-        this.ctx = this.canvas.getContext("2d", {alpha: false})!;
         this.fluid = new Fluid2d();
+        this.renderer = new SimulationCanvasRenderer(this.canvas);
 
         this.canvas.onmousedown = (e) => {
             const dpr = window.devicePixelRatio;
@@ -34,9 +113,8 @@ export class Simulation {
             this.mouseY = ((e.clientY - bb.y) * (dpr / this.globalScale)) | 0;
             this.startX = this.mouseX;
             this.startY = this.mouseY;
-            this.r = Math.random();
-            this.g = Math.random();
-            this.b = Math.random();
+            this.colorTime = Math.random();
+            hue(this.color, this.colorTime - Math.trunc(this.colorTime));
         };
 
         this.canvas.onmouseup = (e) => {
@@ -112,6 +190,12 @@ export class Simulation {
     startY = 0;
 
     update(dt: number) {
+        this.colorTime += dt * this.colorSpeed;
+        hue(this.color, this.colorTime - (this.colorTime|0));
+        const r = this.color.x;
+        const g = this.color.y;
+        const b = this.color.z;
+
         this.fluid.clearPrevious();
         this.fluid.updateForces(dt);
         // this.fluid.addSourceDensity(500, w / 4, h / 4);
@@ -133,38 +217,39 @@ export class Simulation {
                     if (this.fluid.blocked[ij] !== 0) continue;
                     this.fluid.addSourceDensity(this.spawnAmount / n, x | 0, y | 0);
                     this.fluid.addSourceVelocity(this.spawnForce / n, fx, fy, x | 0, y | 0);
+
                     if (this.fluid.blocked[ij - 1] === 0) {
-                        this.fluid.r0[ij - 1] = this.r;
-                        this.fluid.g0[ij - 1] = this.g;
-                        this.fluid.b0[ij - 1] = this.b;
+                        this.fluid.r0[ij - 1] = r;
+                        this.fluid.g0[ij - 1] = g;
+                        this.fluid.b0[ij - 1] = b;
                     }
                     if (this.fluid.blocked[ij - w] === 0) {
-                        this.fluid.r0[ij - w] = this.r;
-                        this.fluid.g0[ij - w] = this.g;
-                        this.fluid.b0[ij - w] = this.b;
+                        this.fluid.r0[ij - w] = r;
+                        this.fluid.g0[ij - w] = g;
+                        this.fluid.b0[ij - w] = b;
                     }
                     if (this.fluid.blocked[ij - w - 1] === 0) {
-                        this.fluid.r0[ij - w - 1] = this.r;
-                        this.fluid.g0[ij - w - 1] = this.g;
-                        this.fluid.b0[ij - w - 1] = this.b;
+                        this.fluid.r0[ij - w - 1] = r;
+                        this.fluid.g0[ij - w - 1] = g;
+                        this.fluid.b0[ij - w - 1] = b;
                     }
-                    this.fluid.r0[ij] = this.r;
-                    this.fluid.g0[ij] = this.g;
-                    this.fluid.b0[ij] = this.b;
+                    this.fluid.r0[ij] = r;
+                    this.fluid.g0[ij] = g;
+                    this.fluid.b0[ij] = b;
                     if (this.fluid.blocked[ij + 1] === 0) {
-                        this.fluid.r0[ij + 1] = this.r;
-                        this.fluid.g0[ij + 1] = this.g;
-                        this.fluid.b0[ij + 1] = this.b;
+                        this.fluid.r0[ij + 1] = r;
+                        this.fluid.g0[ij + 1] = g;
+                        this.fluid.b0[ij + 1] = b;
                     }
                     if (this.fluid.blocked[ij + w] === 0) {
-                        this.fluid.r0[ij + w] = this.r;
-                        this.fluid.g0[ij + w] = this.g;
-                        this.fluid.b0[ij + w] = this.b;
+                        this.fluid.r0[ij + w] = r;
+                        this.fluid.g0[ij + w] = g;
+                        this.fluid.b0[ij + w] = b;
                     }
                     if (this.fluid.blocked[ij + w + 1] === 0) {
-                        this.fluid.r0[ij + w + 1] = this.r;
-                        this.fluid.g0[ij + w + 1] = this.g;
-                        this.fluid.b0[ij + w + 1] = this.b;
+                        this.fluid.r0[ij + w + 1] = r;
+                        this.fluid.g0[ij + w + 1] = g;
+                        this.fluid.b0[ij + w + 1] = b;
                     }
                     x += dx;
                     y += dy;
@@ -176,42 +261,9 @@ export class Simulation {
 
         this.fluid.velocityStep(dt);
         this.fluid.densityStep(dt);
-
-    }
-
-    drawPixels(data: Uint8ClampedArray) {
-        const dens = this.fluid.density;
-        const blocked = this.fluid.blocked;
-        const r0 = this.fluid.r0;
-        const g0 = this.fluid.g0;
-        const b0 = this.fluid.b0;
-        let i_ptr = 0;
-        let d_ptr = 0;
-        for (let i = 0; i < h; ++i) {
-            for (let j = 0; j < w; ++j) {
-                let d = Math.min(1.0, 0.5 + dens[d_ptr]);
-                if (blocked[d_ptr] !== 0) {
-                    data[i_ptr++] = 255;
-                    data[i_ptr++] = 255;
-                    data[i_ptr++] = 255;
-                    data[i_ptr++] = 255;
-                } else {
-                    data[i_ptr++] = d * 255 * r0[d_ptr];
-                    data[i_ptr++] = d * 255 * g0[d_ptr];
-                    data[i_ptr++] = d * 255 * b0[d_ptr];
-                    data[i_ptr++] = 255;
-                }
-                ++d_ptr;
-            }
-            //++d_ptr;
-        }
     }
 
     draw() {
-        if (this.ctx) {
-            const image = this.ctx.getImageData(0, 0, w, h);
-            this.drawPixels(image.data);
-            this.ctx.putImageData(image, 0, 0);
-        }
+        this.renderer.drawColors(this.fluid);
     }
 }

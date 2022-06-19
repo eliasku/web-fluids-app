@@ -39,14 +39,14 @@ export function range(prop: Property) {
         input.max = (prop.max / prop.multiplier).toString();
     }
     input.value = (prop.target[prop.name] / prop.multiplier).toString();
-    output.innerText = input.value;
+    output.innerText = prop.target[prop.name].toString();
     input.oninput = (ev) => {
         const val = input.value;
         const num = Number.parseFloat(val) * prop.multiplier;
         output.innerText = num.toString();
         if (prop.target) {
             prop.target[prop.name] = num;
-            if(("on_" + prop.name) in prop.target) {
+            if (("on_" + prop.name) in prop.target) {
                 prop.target["on_" + prop.name]();
             }
         }
@@ -69,8 +69,8 @@ export function combo(target: any, name: string, options: string[]) {
     }
     select.value = target[name].toString();
     select.onchange = (ev) => {
-        const idx = Number.parseInt(select.value);
-        target[name] = idx;
+        const i = Number.parseInt(select.value);
+        target[name] = Number.isNaN(i) ? 0 : i;
     };
     label.appendChild(select);
     p.appendChild(label);
