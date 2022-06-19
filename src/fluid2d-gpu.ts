@@ -148,7 +148,6 @@ void main () {
 `;
 
 const displayShaderCode = `
-#define SHADING
 precision highp float;
 precision highp sampler2D;
 varying vec2 vUv;
@@ -160,6 +159,7 @@ uniform sampler2D uTexture;
 uniform sampler2D uBloom;
 uniform sampler2D uSunrays;
 uniform sampler2D uDithering;
+uniform float uShadingK;
 uniform vec2 ditherScale;
 uniform vec2 texelSize;
 vec3 linearToGamma (vec3 color) {
@@ -168,7 +168,6 @@ vec3 linearToGamma (vec3 color) {
 }
 void main () {
     vec3 c = texture2D(uTexture, vUv).rgb;
-#ifdef SHADING
     vec3 lc = texture2D(uTexture, vL).rgb;
     vec3 rc = texture2D(uTexture, vR).rgb;
     vec3 tc = texture2D(uTexture, vT).rgb;
@@ -178,8 +177,9 @@ void main () {
     vec3 n = normalize(vec3(dx, dy, length(texelSize)));
     vec3 l = vec3(0.0, 0.0, 1.0);
     float diffuse = clamp(dot(n, l) + 0.7, 0.7, 1.0);
-    c *= diffuse;
-#endif
+    c *= mix(1.0, diffuse, uShadingK);
+    //c = mix(c, vec3(diffuse, diffuse, diffuse), uShadingK);
+
 #ifdef BLOOM
     vec3 bloom = texture2D(uBloom, vUv).rgb;
 #endif
@@ -199,7 +199,7 @@ void main () {
 #endif
     float noise = texture2D(uDithering, vUv * ditherScale).r;
     noise = noise * 2.0 - 1.0;
-    c += noise / 255;
+    c += noise / 255.0;
     float a = max(c.r, max(c.g, c.b));
     gl_FragColor = vec4(c, a);
 }
@@ -451,6 +451,7 @@ interface Config {
     dissipationDensity: number;
     viscosity: number;
     diffusion: number;
+    shading: number;
 }
 
 interface TextureObject {
@@ -504,7 +505,8 @@ export class Fluid2dGpu {
         dissipationVelocity: 0.2,
         dissipationDensity: 1.0,
         viscosity: 0.00001,
-        diffusion: 0.00001
+        diffusion: 0.00001,
+        shading: 0.0
     };
 
     gl: WebGL2RenderingContext;
@@ -530,6 +532,8 @@ export class Fluid2dGpu {
     pressure: DoubleFbo;
     curl: Fbo;
     divergence: Fbo;
+
+    timeScale: number = 1.0;
 
     on_globalScale() {
         const dpr = window.devicePixelRatio;
@@ -614,10 +618,7 @@ export class Fluid2dGpu {
         };
     }
 
-    update(dt: number) {
-        const gl = this.gl;
-        gl.disable(gl.BLEND);
-
+    updateBrush(dt: number) {
         this.colorTime += dt * this.colorSpeed;
         hue(this.color, this.colorTime - (this.colorTime | 0));
         let mx = this.mouseX | 0;
@@ -650,10 +651,11 @@ export class Fluid2dGpu {
                 this.startY = my;
             }
         }
+    }
 
-        // if(this.N++ < 10) {
-        //this.splat(Math.random(), Math.random(), Math.random() * 100 - 50, Math.random() * 100 - 50, new Vec4(Math.random(), 0, Math.random(), 1));
-        // }
+    step(dt: number) {
+        const gl = this.gl;
+        gl.disable(gl.BLEND);
 
         this.curlProgram.bind();
         gl.uniform2f(this.curlProgram.uniforms.texelSize, this.velocity.texelSizeX, this.velocity.texelSizeY);
@@ -708,14 +710,16 @@ export class Fluid2dGpu {
         this.blit(this.velocity.write);
         this.velocity.swap();
 
-        this.solveProgram.bind();
-        const a = dt * this.config.viscosity;
-        gl.uniform2f(this.solveProgram.uniforms.texelSize, this.velocity.texelSizeX, this.velocity.texelSizeY);
-        gl.uniform2f(this.solveProgram.uniforms.uC, a, 1.0 / (1.0 + 4.0 * a));
-        for (let i = 0; i < 20; ++i) {
-            gl.uniform1i(this.solveProgram.uniforms.uSource, this.velocity.read.attach(0));
-            this.blit(this.velocity.write);
-            this.velocity.swap();
+        if(this.config.viscosity > 0.0) {
+            this.solveProgram.bind();
+            const a = dt * this.config.viscosity;
+            gl.uniform2f(this.solveProgram.uniforms.texelSize, this.velocity.texelSizeX, this.velocity.texelSizeY);
+            gl.uniform2f(this.solveProgram.uniforms.uC, a, 1.0 / (1.0 + 4.0 * a));
+            for (let i = 0; i < 20; ++i) {
+                gl.uniform1i(this.solveProgram.uniforms.uSource, this.velocity.read.attach(0));
+                this.blit(this.velocity.write);
+                this.velocity.swap();
+            }
         }
 
         this.advectionProgram.bind();
@@ -727,7 +731,7 @@ export class Fluid2dGpu {
         this.blit(this.dye.write);
         this.dye.swap();
 
-        if(this.config.diffusion >= 0.000001) {
+        if(this.config.diffusion > 0) {
             this.solveProgram.bind();
             const A_ = dt * this.config.diffusion;
             gl.uniform2f(this.solveProgram.uniforms.texelSize, this.dye.texelSizeX, this.dye.texelSizeY);
@@ -737,6 +741,17 @@ export class Fluid2dGpu {
                 this.blit(this.dye.write);
                 this.dye.swap();
             }
+        }
+    }
+
+    update(dt: number) {
+        dt *= this.timeScale;
+        if(dt > 0.0) {
+            this.updateBrush(dt);
+            // if(this.N++ < 10) {
+            //this.splat(Math.random(), Math.random(), Math.random() * 100 - 50, Math.random() * 100 - 50, new Vec4(Math.random(), 0, Math.random(), 1));
+            // }
+            this.step(dt);
         }
 
         this.render(null);
@@ -750,6 +765,7 @@ export class Fluid2dGpu {
         gl.uniform2f(this.displayProgram.uniforms.texelSize, this.dye.texelSizeX, this.dye.texelSizeY);
         gl.uniform1i(this.displayProgram.uniforms.uTexture, this.dye.read.attach(0));
         //gl.uniform1i(displayMaterial.uniforms.uBloom, bloom.attach(1));
+        gl.uniform1f(this.displayProgram.uniforms.uShadingK, this.config.shading);
         gl.uniform1i(this.displayProgram.uniforms.uDithering, this.ditheringTexture.attach(2));
         gl.uniform2f(this.displayProgram.uniforms.ditherScale, width / this.ditheringTexture.width, height / this.ditheringTexture.height);
         this.blit(target);
