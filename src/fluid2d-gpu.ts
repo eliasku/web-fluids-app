@@ -24,11 +24,11 @@ function createGLContext(canvas: HTMLCanvasElement): WebGL2RenderingContext | nu
         logToDocument("😵 <b>EXT_color_buffer_float</b> is required");
         return null;
     }
-    const linearFiltering = gl.getExtension('OES_texture_float_linear');
-    if (!linearFiltering) {
-        logToDocument("😵‍💫 <b>OES_texture_float_linear</b> is required");
-        return null;
-    }
+    // const linearFiltering = gl.getExtension('OES_texture_half_float_linear');
+    // if (!linearFiltering) {
+    //     logToDocument("😵‍💫 <b>OES_texture_half_float_linear</b> is required");
+    //     return null;
+    // }
     return gl;
 }
 
@@ -669,11 +669,11 @@ export class Fluid2dGpu {
         this.solveProgram = new Program(this.gl, baseVertexShaderCode, solveShaderCode);
         this.obstaclesProgram = new Program(this.gl, baseVertexShaderCode, obstaclesShaderCode);
 
-        this.dye = new DoubleFbo(gl, mapWidth, mapHeight, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.LINEAR);
-        this.velocity = new DoubleFbo(gl, simulationWidth, simulationHeight, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.LINEAR);
-        this.pressure = new DoubleFbo(gl, simulationWidth, simulationHeight, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST);
-        this.divergence = new Fbo(gl, simulationWidth, simulationHeight, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST);
-        this.curl = new Fbo(gl, simulationWidth, simulationHeight, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST);
+        this.dye = new DoubleFbo(gl, mapWidth, mapHeight, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR);
+        this.velocity = new DoubleFbo(gl, simulationWidth, simulationHeight, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR);
+        this.pressure = new DoubleFbo(gl, simulationWidth, simulationHeight, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.NEAREST);
+        this.divergence = new Fbo(gl, simulationWidth, simulationHeight, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.NEAREST);
+        this.curl = new Fbo(gl, simulationWidth, simulationHeight, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.NEAREST);
         this.obstacleC = new DoubleFbo(gl, simulationWidth, simulationHeight, gl.R8, gl.RED, gl.UNSIGNED_BYTE, gl.NEAREST);
         this.obstacleN = new DoubleFbo(gl, simulationWidth, simulationHeight, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST);
 
