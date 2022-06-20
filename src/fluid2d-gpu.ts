@@ -1,5 +1,5 @@
 import {hue, Vec4} from "./vec4";
-import {h, w} from "./fluid2d";
+import {Input} from "./input";
 
 function createGLContext(canvas: HTMLCanvasElement): WebGL2RenderingContext | null {
     const params: WebGLContextAttributes = {
@@ -543,7 +543,7 @@ function createTextureDefer(gl: WebGL2RenderingContext, url: string): TextureObj
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, 1, 1, 0, gl.RGB, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255]));
 
-    let obj :TextureObject = {
+    let obj: TextureObject = {
         texture,
         width: 1,
         height: 1,
@@ -616,16 +616,13 @@ export class Fluid2dGpu {
         this.canvas.style.height = Math.round(this.canvas.height * this.globalScale / dpr) + "px";
     }
 
-    spawnAmount = 50.0 * 6.0 * 10.0;
-    spawnForce = 60.0 * w;
+    // spawnAmount = 50.0 * 6.0 * 10.0;
+    // spawnForce = 60.0 * w;
     readonly color = new Vec4(1.0, 1.0, 1.0, 1.0);
     colorTime = 0.0;
     colorSpeed = 0.2;
-    mousePushed = false;
-    mouseX = 0;
-    mouseY = 0;
-    startX = 0;
-    startY = 0;
+
+    input: Input;
 
     constructor(id: string) {
         const mapWidth = 1024;
@@ -672,61 +669,43 @@ export class Fluid2dGpu {
 
         this.ditheringTexture = createTextureDefer(gl, "LDR_LLL1_0.png");
 
-        this.canvas.onmousedown = (e) => {
-            const dpr = window.devicePixelRatio;
-            this.mousePushed = true;
-            const bb = this.canvas.getBoundingClientRect();
-            this.mouseX = ((e.clientX - bb.x) * (dpr / this.globalScale)) | 0;
-            this.mouseY = ((e.clientY - bb.y) * (dpr / this.globalScale)) | 0;
-            this.startX = this.mouseX;
-            this.startY = this.mouseY;
-            this.colorTime = Math.random();
-            hue(this.color, this.colorTime - Math.trunc(this.colorTime));
-        };
-
-        this.canvas.onmouseup = (e) => {
-            this.mousePushed = false;
-        };
-
-        this.canvas.onmousemove = (e) => {
-            const dpr = window.devicePixelRatio;
-            const bb = this.canvas.getBoundingClientRect();
-            this.mouseX = (e.clientX - bb.x) * (dpr / this.globalScale) | 0;
-            this.mouseY = (e.clientY - bb.y) * (dpr / this.globalScale) | 0;
-        };
+        this.input = new Input(this.canvas);
     }
 
     updateBrush(dt: number) {
         this.colorTime += dt * this.colorSpeed;
         hue(this.color, this.colorTime - (this.colorTime | 0));
-        let mx = this.mouseX | 0;
-        let my = this.mouseY | 0;
-        const width = this.canvas.width;
-        const height = this.canvas.height;
-        if (this.mousePushed && (mx !== this.startX || my !== this.startY)) {
-            if (mx > 0 && mx < width - 1 && my > 0 && my < height - 1) {
-                const fx = mx - this.startX;
-                const fy = my - this.startY;
-                const len = Math.sqrt(fx * fx + fy * fy);
-                //const n = (len | 0) + 1;
-                const n = 1;
-                let x = this.startX;
-                let y = this.startY;
-                let dx = (mx - this.startX) / n;
-                let dy = (my - this.startY) / n;
-                for (let i = 0; i < n + 1; ++i) {
-                    //if (this.fluid.blocked[ij] !== 0) continue;
-                    // this.fluid.addSourceDensity(this.spawnAmount / n, x | 0, y | 0);
-                    // this.fluid.addSourceVelocity(this.spawnForce / n, fx, fy, x | 0, y | 0);
-                    this.splat(x / width,
-                        1.0 - y / height,
-                        fx, -fy, this.color);
+        for (let i = 0; i < this.input.pointers.length; ++i) {
+            const pointer = this.input.pointers[i];
+            if (pointer.active && pointer.down) {
+                let mx = pointer.x | 0;
+                let my = pointer.y | 0;
+                const width = this.canvas.width;
+                const height = this.canvas.height;
+                if (pointer.down && (mx !== pointer.prevX || my !== pointer.prevY)) {
+                    if (mx > 0 && mx < width - 1 && my > 0 && my < height - 1) {
+                        const fx = mx - pointer.prevX;
+                        const fy = my - pointer.prevY;
+                        const len = Math.sqrt(fx * fx + fy * fy);
+                        //const n = (len | 0) + 1;
+                        const n = 1;
+                        let x = pointer.prevX;
+                        let y = pointer.prevY;
+                        let dx = (mx - pointer.prevX) / n;
+                        let dy = (my - pointer.prevY) / n;
+                        for (let i = 0; i < n + 1; ++i) {
+                            //if (this.fluid.blocked[ij] !== 0) continue;
+                            // this.fluid.addSourceDensity(this.spawnAmount / n, x | 0, y | 0);
+                            // this.fluid.addSourceVelocity(this.spawnForce / n, fx, fy, x | 0, y | 0);
+                            this.splat(x / width,
+                                1.0 - y / height,
+                                fx, -fy, this.color);
 
-                    x += dx;
-                    y += dy;
+                            x += dx;
+                            y += dy;
+                        }
+                    }
                 }
-                this.startX = mx;
-                this.startY = my;
             }
         }
     }
@@ -769,7 +748,7 @@ export class Fluid2dGpu {
     }
 
     vorticity(dt: number) {
-        if(this.config.vorticity <= 0.0) {
+        if (this.config.vorticity <= 0.0) {
             return;
         }
 
@@ -790,8 +769,8 @@ export class Fluid2dGpu {
         this.velocity.swap();
     }
 
-    diffuse(diff: number, dt:number, iterations: number, target: DoubleFbo) {
-        if(diff <= 0.0) {
+    diffuse(diff: number, dt: number, iterations: number, target: DoubleFbo) {
+        if (diff <= 0.0) {
             return;
         }
         const gl = this.gl;
@@ -844,16 +823,17 @@ export class Fluid2dGpu {
     }
 
     N = 0;
+
     update(dt: number) {
         dt *= this.timeScale;
-        if(dt > 0.0) {
+        if (dt > 0.0) {
             this.updateBrush(dt);
-            if(this.N++ < 10) {
+            if (this.N++ < 10) {
                 //this.splat(Math.random(), Math.random(), Math.random() * 100 - 50, Math.random() * 100 - 50, new Vec4(Math.random(), 0, Math.random(), 1));
 
                 let x = Math.random();
                 let y = Math.random();
-                for(let i = 0; i < 10; ++i) {
+                for (let i = 0; i < 10; ++i) {
                     this.splatObstacle(x + i * this.obstacleC.texelSizeX, y);
                 }
             }
