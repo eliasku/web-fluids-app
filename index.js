@@ -209,7 +209,12 @@ var Input = /** @class */ (function () {
         pointer.active = false;
     };
     return Input;
-}());function createGLContext(canvas) {
+}());function logToDocument(html) {
+    var p = document.createElement("p");
+    p.innerHTML = html;
+    document.body.prepend(p);
+}
+function createGLContext(canvas) {
     var params = {
         alpha: false,
         depth: false,
@@ -217,17 +222,21 @@ var Input = /** @class */ (function () {
         antialias: false
     };
     var gl = canvas.getContext("webgl2", params);
-    if (gl) {
-        var ext = gl.getExtension('EXT_color_buffer_float');
-        if (ext) {
-            var linearFiltering = gl.getExtension('OES_texture_float_linear');
-            if (!linearFiltering) {
-                console.warn("no linear filtering for float render targets");
-            }
-            return gl;
-        }
+    if (!gl) {
+        logToDocument("💀 <b>WebGL 2</b> is required");
+        return null;
     }
-    return null;
+    var ext = gl.getExtension('EXT_color_buffer_float');
+    if (!ext) {
+        logToDocument("😵 <b>EXT_color_buffer_float</b> is required");
+        return null;
+    }
+    var linearFiltering = gl.getExtension('OES_texture_float_linear');
+    if (!linearFiltering) {
+        logToDocument("😵‍💫 <b>OES_texture_float_linear</b> is required");
+        return null;
+    }
+    return gl;
 }
 function createShader(gl, type, code) {
     var shader = gl.createShader(type);
