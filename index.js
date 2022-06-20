@@ -104,7 +104,112 @@ var Vec4 = /** @class */ (function () {
         this.w = w;
     }
     return Vec4;
-}());var w = 128;function createGLContext(canvas) {
+}());var Pointer = /** @class */ (function () {
+    function Pointer() {
+        this.id = 0;
+        this.startX = +0.0;
+        this.startY = +0.0;
+        this.prevX = +0.0;
+        this.prevY = +0.0;
+        this.x = +0.0;
+        this.y = +0.0;
+        this.down = false;
+        this.active = false;
+    }
+    return Pointer;
+}());
+var Input = /** @class */ (function () {
+    function Input(canvas) {
+        var _this = this;
+        this.canvas = canvas;
+        this.pointers = [];
+        canvas.addEventListener("mousedown", function (e) {
+            var scale = _this.canvas.width / _this.canvas.clientWidth;
+            var bb = _this.canvas.getBoundingClientRect();
+            _this.handleDown(_this.getPointer(-1), ((e.clientX - bb.x) * scale) | 0, ((e.clientY - bb.y) * scale) | 0);
+        });
+        canvas.addEventListener("mouseup", function (e) {
+            _this.handleUp(_this.getPointer(-1));
+        });
+        canvas.addEventListener("mouseleave", function (e) {
+            _this.handleUp(_this.getPointer(-1));
+        });
+        canvas.addEventListener("mouseenter", function (e) {
+            if (e.buttons) {
+                var scale = _this.canvas.width / _this.canvas.clientWidth;
+                var bb = _this.canvas.getBoundingClientRect();
+                _this.handleDown(_this.getPointer(-1), ((e.clientX - bb.x) * scale) | 0, ((e.clientY - bb.y) * scale) | 0);
+            }
+        });
+        canvas.addEventListener("mousemove", function (e) {
+            var scale = _this.canvas.width / _this.canvas.clientWidth;
+            var bb = _this.canvas.getBoundingClientRect();
+            _this.handleMove(_this.getPointer(-1), ((e.clientX - bb.x) * scale) | 0, ((e.clientY - bb.y) * scale) | 0);
+        });
+        canvas.addEventListener("touchstart", function (e) {
+            e.preventDefault();
+            var scale = _this.canvas.width / _this.canvas.clientWidth;
+            var bb = _this.canvas.getBoundingClientRect();
+            for (var i = 0; i < e.changedTouches.length; ++i) {
+                var touch = e.changedTouches.item(i);
+                _this.handleDown(_this.getPointer(touch.identifier), ((touch.clientX - bb.x) * scale) | 0, ((touch.clientY - bb.y) * scale) | 0);
+            }
+        });
+        canvas.addEventListener("touchmove", function (e) {
+            e.preventDefault();
+            var scale = _this.canvas.width / _this.canvas.clientWidth;
+            var bb = _this.canvas.getBoundingClientRect();
+            for (var i = 0; i < e.changedTouches.length; ++i) {
+                var touch = e.changedTouches.item(i);
+                _this.handleMove(_this.getPointer(touch.identifier), ((touch.clientX - bb.x) * scale) | 0, ((touch.clientY - bb.y) * scale) | 0);
+            }
+        }, false);
+        canvas.addEventListener("touchend", function (e) {
+            for (var i = 0; i < e.changedTouches.length; ++i) {
+                var touch = e.changedTouches.item(i);
+                _this.handleUp(_this.getPointer(touch.identifier));
+            }
+        });
+        canvas.addEventListener("touchcancel", function (e) {
+            for (var i = 0; i < e.changedTouches.length; ++i) {
+                var touch = e.changedTouches.item(i);
+                _this.handleUp(_this.getPointer(touch.identifier));
+            }
+        });
+    }
+    Input.prototype.getPointer = function (id) {
+        for (var i = 0; i < this.pointers.length; ++i) {
+            if (this.pointers[i].id === id) {
+                return this.pointers[i];
+            }
+        }
+        var pointer = new Pointer();
+        pointer.id = id;
+        this.pointers.push(pointer);
+        return pointer;
+    };
+    Input.prototype.handleDown = function (pointer, x, y) {
+        pointer.x = x;
+        pointer.y = y;
+        pointer.prevX = x;
+        pointer.prevY = y;
+        pointer.startX = x;
+        pointer.startY = y;
+        pointer.down = true;
+        pointer.active = true;
+    };
+    Input.prototype.handleMove = function (pointer, x, y) {
+        pointer.prevX = pointer.x;
+        pointer.prevY = pointer.y;
+        pointer.x = x;
+        pointer.y = y;
+    };
+    Input.prototype.handleUp = function (pointer) {
+        pointer.down = false;
+        pointer.active = false;
+    };
+    return Input;
+}());function createGLContext(canvas) {
     var params = {
         alpha: false,
         depth: false,
@@ -281,7 +386,6 @@ function createTextureDefer(gl, url) {
 }
 var Fluid2dGpu = /** @class */ (function () {
     function Fluid2dGpu(id) {
-        var _this = this;
         this.globalScale = 1.0;
         this.config = {
             vorticity: 10.0,
@@ -294,16 +398,11 @@ var Fluid2dGpu = /** @class */ (function () {
             shading: 0.0
         };
         this.timeScale = 1.0;
-        this.spawnAmount = 50.0 * 6.0 * 10.0;
-        this.spawnForce = 60.0 * w;
+        // spawnAmount = 50.0 * 6.0 * 10.0;
+        // spawnForce = 60.0 * w;
         this.color = new Vec4(1.0, 1.0, 1.0, 1.0);
         this.colorTime = 0.0;
         this.colorSpeed = 0.2;
-        this.mousePushed = false;
-        this.mouseX = 0;
-        this.mouseY = 0;
-        this.startX = 0;
-        this.startY = 0;
         this.N = 0;
         var mapWidth = 1024;
         var mapHeight = 1024;
@@ -342,26 +441,7 @@ var Fluid2dGpu = /** @class */ (function () {
         this.obstacleC = new DoubleFbo(gl, simulationWidth, simulationHeight, gl.R8, gl.RED, gl.UNSIGNED_BYTE, gl.NEAREST);
         this.obstacleN = new DoubleFbo(gl, simulationWidth, simulationHeight, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST);
         this.ditheringTexture = createTextureDefer(gl, "LDR_LLL1_0.png");
-        this.canvas.onmousedown = function (e) {
-            var dpr = window.devicePixelRatio;
-            _this.mousePushed = true;
-            var bb = _this.canvas.getBoundingClientRect();
-            _this.mouseX = ((e.clientX - bb.x) * (dpr / _this.globalScale)) | 0;
-            _this.mouseY = ((e.clientY - bb.y) * (dpr / _this.globalScale)) | 0;
-            _this.startX = _this.mouseX;
-            _this.startY = _this.mouseY;
-            _this.colorTime = Math.random();
-            hue(_this.color, _this.colorTime - Math.trunc(_this.colorTime));
-        };
-        this.canvas.onmouseup = function (e) {
-            _this.mousePushed = false;
-        };
-        this.canvas.onmousemove = function (e) {
-            var dpr = window.devicePixelRatio;
-            var bb = _this.canvas.getBoundingClientRect();
-            _this.mouseX = (e.clientX - bb.x) * (dpr / _this.globalScale) | 0;
-            _this.mouseY = (e.clientY - bb.y) * (dpr / _this.globalScale) | 0;
-        };
+        this.input = new Input(this.canvas);
     }
     Fluid2dGpu.prototype.on_globalScale = function () {
         var dpr = window.devicePixelRatio;
@@ -371,30 +451,33 @@ var Fluid2dGpu = /** @class */ (function () {
     Fluid2dGpu.prototype.updateBrush = function (dt) {
         this.colorTime += dt * this.colorSpeed;
         hue(this.color, this.colorTime - (this.colorTime | 0));
-        var mx = this.mouseX | 0;
-        var my = this.mouseY | 0;
-        var width = this.canvas.width;
-        var height = this.canvas.height;
-        if (this.mousePushed && (mx !== this.startX || my !== this.startY)) {
-            if (mx > 0 && mx < width - 1 && my > 0 && my < height - 1) {
-                var fx = mx - this.startX;
-                var fy = my - this.startY;
-                //const n = (len | 0) + 1;
-                var n = 1;
-                var x = this.startX;
-                var y = this.startY;
-                var dx = (mx - this.startX) / n;
-                var dy = (my - this.startY) / n;
-                for (var i = 0; i < n + 1; ++i) {
-                    //if (this.fluid.blocked[ij] !== 0) continue;
-                    // this.fluid.addSourceDensity(this.spawnAmount / n, x | 0, y | 0);
-                    // this.fluid.addSourceVelocity(this.spawnForce / n, fx, fy, x | 0, y | 0);
-                    this.splat(x / width, 1.0 - y / height, fx, -fy, this.color);
-                    x += dx;
-                    y += dy;
+        for (var i = 0; i < this.input.pointers.length; ++i) {
+            var pointer = this.input.pointers[i];
+            if (pointer.active && pointer.down) {
+                var mx = pointer.x | 0;
+                var my = pointer.y | 0;
+                var width = this.canvas.width;
+                var height = this.canvas.height;
+                if (pointer.down && (mx !== pointer.prevX || my !== pointer.prevY)) {
+                    if (mx > 0 && mx < width - 1 && my > 0 && my < height - 1) {
+                        var fx = mx - pointer.prevX;
+                        var fy = my - pointer.prevY;
+                        //const n = (len | 0) + 1;
+                        var n = 1;
+                        var x = pointer.prevX;
+                        var y = pointer.prevY;
+                        var dx = (mx - pointer.prevX) / n;
+                        var dy = (my - pointer.prevY) / n;
+                        for (var i_1 = 0; i_1 < n + 1; ++i_1) {
+                            //if (this.fluid.blocked[ij] !== 0) continue;
+                            // this.fluid.addSourceDensity(this.spawnAmount / n, x | 0, y | 0);
+                            // this.fluid.addSourceVelocity(this.spawnForce / n, fx, fy, x | 0, y | 0);
+                            this.splat(x / width, 1.0 - y / height, fx, -fy, this.color);
+                            x += dx;
+                            y += dy;
+                        }
+                    }
                 }
-                this.startX = mx;
-                this.startY = my;
             }
         }
     };
