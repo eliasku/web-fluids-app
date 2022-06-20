@@ -159,6 +159,7 @@ uniform sampler2D uTexture;
 uniform sampler2D uBloom;
 uniform sampler2D uSunrays;
 uniform sampler2D uDithering;
+uniform sampler2D uObstacleC;
 uniform float uShadingK;
 uniform vec2 ditherScale;
 uniform vec2 texelSize;
@@ -201,7 +202,8 @@ void main () {
     noise = noise * 2.0 - 1.0;
     c += noise / 255.0;
     float a = max(c.r, max(c.g, c.b));
-    gl_FragColor = vec4(c, a);
+    float C = texture2D(uObstacleC, vUv).x;
+    gl_FragColor = vec4(c, a) + vec4(C, C, C, 0.0);
 }
 `;
 
@@ -225,7 +227,13 @@ varying highp vec2 vR;
 varying highp vec2 vT;
 varying highp vec2 vB;
 uniform sampler2D uVelocity;
+uniform sampler2D uObstacleC;
+uniform sampler2D uObstacleN;
 void main () {
+    if(texture2D(uObstacleC, vUv).x >= 1.0) {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
     float L = texture2D(uVelocity, vL).x;
     float R = texture2D(uVelocity, vR).x;
     float T = texture2D(uVelocity, vT).y;
@@ -235,6 +243,11 @@ void main () {
     if (vR.x > 1.0) { R = -C.x; }
     if (vT.y > 1.0) { T = -C.y; }
     if (vB.y < 0.0) { B = -C.y; }
+    vec4 oN = texture2D(uObstacleN, vUv);
+    L = mix(L, -C.x, oN.x);  // if(oT > 0.0) vT = -vC;
+    R = mix(R, -C.x, oN.y);  // if(oB > 0.0) vB = -vC;
+    T = mix(T, -C.y, oN.z);  // if(oR > 0.0) vR = -vC;
+    B = mix(B, -C.y, oN.w);  // if(oL > 0.0) vL = -vC;
     float div = -0.5 * (R - L + T - B);
     gl_FragColor = vec4(div, 0.0, 0.0, 1.0);
 }
@@ -250,12 +263,23 @@ varying highp vec2 vT;
 varying highp vec2 vB;
 uniform sampler2D uPressure;
 uniform sampler2D uDivergence;
+uniform sampler2D uObstacleC;
+uniform sampler2D uObstacleN;
 void main () {
+    if(texture2D(uObstacleC, vUv).x >= 1.0) {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
     float L = texture2D(uPressure, vL).x;
     float R = texture2D(uPressure, vR).x;
     float T = texture2D(uPressure, vT).x;
     float B = texture2D(uPressure, vB).x;
     float C = texture2D(uPressure, vUv).x;
+    vec4 oN = texture2D(uObstacleN, vUv);
+    L = mix(L, C, oN.x);  // if(oT > 0.0) vT = -vC;
+    R = mix(R, C, oN.y);  // if(oB > 0.0) vB = -vC;
+    T = mix(T, C, oN.z);  // if(oR > 0.0) vR = -vC;
+    B = mix(B, C, oN.w);  // if(oL > 0.0) vL = -vC;
     float div = texture2D(uDivergence, vUv).x;
     float pressure = (L + R + B + T + div) * 0.25;
     gl_FragColor = vec4(pressure, 0.0, 0.0, 1.0);
@@ -272,12 +296,25 @@ varying highp vec2 vT;
 varying highp vec2 vB;
 uniform sampler2D uPressure;
 uniform sampler2D uVelocity;
+uniform sampler2D uObstacleC;
+uniform sampler2D uObstacleN;
+
 void main () {
+    if(texture2D(uObstacleC, vUv).x >= 1.0) {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
     float L = texture2D(uPressure, vL).x;
     float R = texture2D(uPressure, vR).x;
     float T = texture2D(uPressure, vT).x;
     float B = texture2D(uPressure, vB).x;
+    float C = texture2D(uPressure, vUv).x;
     vec2 velocity = texture2D(uVelocity, vUv).xy;
+    vec4 oN = texture2D(uObstacleN, vUv);
+    L = mix(L, C, oN.x);  // if(oT > 0.0) vT = -vC;
+    R = mix(R, C, oN.y);  // if(oB > 0.0) vB = -vC;
+    T = mix(T, C, oN.z);  // if(oR > 0.0) vR = -vC;
+    B = mix(B, C, oN.w);  // if(oL > 0.0) vL = -vC;
     velocity.xy -= 0.5 * vec2(R - L, T - B);
     gl_FragColor = vec4(velocity, 0.0, 1.0);
 }
@@ -293,12 +330,24 @@ varying highp vec2 vT;
 varying highp vec2 vB;
 uniform highp vec2 uC;
 uniform sampler2D uSource;
+uniform sampler2D uObstacleC;
+uniform sampler2D uObstacleN;
 void main () {
+    if(texture2D(uObstacleC, vUv).x >= 1.0) {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
     vec4 x0 = texture2D(uSource, vUv);
     vec4 L = texture2D(uSource, vL);
     vec4 R = texture2D(uSource, vR);
     vec4 T = texture2D(uSource, vT);
     vec4 B = texture2D(uSource, vB);
+    vec4 oN = texture2D(uObstacleN, vUv);
+    L = mix(L, x0, oN.x);  // if(oT > 0.0) vT = -vC;
+    R = mix(R, x0, oN.y);  // if(oB > 0.0) vB = -vC;
+    T = mix(T, x0, oN.z);  // if(oR > 0.0) vR = -vC;
+    B = mix(B, x0, oN.w);  // if(oL > 0.0) vL = -vC;
+    
     vec4 x = (x0 + uC.x * (L + R + B + T)) * uC.y;
     gl_FragColor = vec4(x.xyz, 1.0);
 }
@@ -310,6 +359,7 @@ precision highp sampler2D;
 varying vec2 vUv;
 uniform sampler2D uVelocity;
 uniform sampler2D uSource;
+uniform sampler2D uObstacleC;
 uniform vec2 texelSize;
 uniform vec2 dyeTexelSize;
 uniform float dt;
@@ -325,6 +375,10 @@ vec4 bilerp (sampler2D sam, vec2 uv, vec2 tsize) {
     return mix(mix(a, b, fuv.x), mix(c, d, fuv.x), fuv.y);
 }
 void main () {
+    if(texture2D(uObstacleC, vUv).x > 0.5) {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
 #ifdef MANUAL_FILTERING
     vec2 coord = vUv - dt * bilerp(uVelocity, vUv, texelSize).xy * texelSize;
     vec4 result = bilerp(uSource, coord, dyeTexelSize);
@@ -337,7 +391,25 @@ void main () {
 }
 `;
 
-//ext.supportLinearFiltering ? null : ['MANUAL_FILTERING']
+const obstaclesShaderCode = `
+precision mediump float;
+precision mediump sampler2D;
+varying highp vec2 vUv;
+varying highp vec2 vL;
+varying highp vec2 vR;
+varying highp vec2 vT;
+varying highp vec2 vB;
+uniform highp vec2 uC;
+uniform sampler2D uObstacles;
+void main () {
+    gl_FragColor = vec4(
+        texture2D(uObstacles, vL).x,
+        texture2D(uObstacles, vR).x,
+        texture2D(uObstacles, vT).x,
+        texture2D(uObstacles, vB).x
+    );
+}
+`;
 
 class Program {
     uniforms: UniformMap;
@@ -504,8 +576,8 @@ export class Fluid2dGpu {
         pressureIterations: 20,
         dissipationVelocity: 0.2,
         dissipationDensity: 1.0,
-        viscosity: 0.00001,
-        diffusion: 0.00001,
+        viscosity: 0.0,
+        diffusion: 0.0,
         shading: 0.0
     };
 
@@ -521,6 +593,7 @@ export class Fluid2dGpu {
     pressureProgram: Program;
     gradientSubtractProgram: Program;
     solveProgram: Program;
+    obstaclesProgram: Program;
 
     ditheringTexture: TextureObject;
 
@@ -532,6 +605,8 @@ export class Fluid2dGpu {
     pressure: DoubleFbo;
     curl: Fbo;
     divergence: Fbo;
+    obstacleC: DoubleFbo;
+    obstacleN: DoubleFbo;
 
     timeScale: number = 1.0;
 
@@ -583,14 +658,17 @@ export class Fluid2dGpu {
         this.displayProgram = new Program(this.gl, baseVertexShaderCode, displayShaderCode);
         this.clearProgram = new Program(this.gl, baseVertexShaderCode, clearShaderCode);
         this.pressureProgram = new Program(this.gl, baseVertexShaderCode, pressureShaderCode);
-        this.gradientSubtractProgram = new Program(this.gl, baseVertexShaderCode, gradientSubtractShaderCode)
-        this.solveProgram = new Program(this.gl, baseVertexShaderCode, solveShaderCode)
+        this.gradientSubtractProgram = new Program(this.gl, baseVertexShaderCode, gradientSubtractShaderCode);
+        this.solveProgram = new Program(this.gl, baseVertexShaderCode, solveShaderCode);
+        this.obstaclesProgram = new Program(this.gl, baseVertexShaderCode, obstaclesShaderCode);
 
         this.dye = new DoubleFbo(gl, mapWidth, mapHeight, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.LINEAR);
         this.velocity = new DoubleFbo(gl, simulationWidth, simulationHeight, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.LINEAR);
         this.pressure = new DoubleFbo(gl, simulationWidth, simulationHeight, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST);
         this.divergence = new Fbo(gl, simulationWidth, simulationHeight, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST);
         this.curl = new Fbo(gl, simulationWidth, simulationHeight, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST);
+        this.obstacleC = new DoubleFbo(gl, simulationWidth, simulationHeight, gl.R8, gl.RED, gl.UNSIGNED_BYTE, gl.NEAREST);
+        this.obstacleN = new DoubleFbo(gl, simulationWidth, simulationHeight, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST);
 
         this.ditheringTexture = createTextureDefer(gl, "LDR_LLL1_0.png");
 
@@ -653,9 +731,49 @@ export class Fluid2dGpu {
         }
     }
 
-    step(dt: number) {
+    project() {
         const gl = this.gl;
-        gl.disable(gl.BLEND);
+
+        this.divergenceProgram.bind();
+        gl.uniform2f(this.divergenceProgram.uniforms.texelSize, this.velocity.texelSizeX, this.velocity.texelSizeY);
+        gl.uniform1i(this.divergenceProgram.uniforms.uVelocity, this.velocity.read.attach(0));
+        gl.uniform1i(this.divergenceProgram.uniforms.uObstacleC, this.obstacleC.read.attach(1));
+        gl.uniform1i(this.divergenceProgram.uniforms.uObstacleN, this.obstacleN.read.attach(2));
+        this.blit(this.divergence);
+
+        this.clearProgram.bind();
+        gl.uniform1i(this.clearProgram.uniforms.uTexture, this.pressure.read.attach(0));
+        gl.uniform1f(this.clearProgram.uniforms.value, this.config.pressure);
+        this.blit(this.pressure.write);
+        this.pressure.swap();
+
+        this.pressureProgram.bind();
+        gl.uniform2f(this.pressureProgram.uniforms.texelSize, this.velocity.texelSizeX, this.velocity.texelSizeY);
+        gl.uniform1i(this.pressureProgram.uniforms.uDivergence, this.divergence.attach(0));
+        gl.uniform1i(this.pressureProgram.uniforms.uObstacleC, this.obstacleC.read.attach(2));
+        gl.uniform1i(this.pressureProgram.uniforms.uObstacleN, this.obstacleN.read.attach(3));
+        for (let i = 0; i < this.config.pressureIterations; ++i) {
+            gl.uniform1i(this.pressureProgram.uniforms.uPressure, this.pressure.read.attach(1));
+            this.blit(this.pressure.write);
+            this.pressure.swap();
+        }
+
+        this.gradientSubtractProgram.bind();
+        gl.uniform2f(this.gradientSubtractProgram.uniforms.texelSize, this.velocity.texelSizeX, this.velocity.texelSizeY);
+        gl.uniform1i(this.gradientSubtractProgram.uniforms.uPressure, this.pressure.read.attach(0));
+        gl.uniform1i(this.gradientSubtractProgram.uniforms.uVelocity, this.velocity.read.attach(1));
+        gl.uniform1i(this.gradientSubtractProgram.uniforms.uObstacleC, this.obstacleC.read.attach(2));
+        gl.uniform1i(this.gradientSubtractProgram.uniforms.uObstacleN, this.obstacleN.read.attach(3));
+        this.blit(this.velocity.write);
+        this.velocity.swap();
+    }
+
+    vorticity(dt: number) {
+        if(this.config.vorticity <= 0.0) {
+            return;
+        }
+
+        const gl = this.gl;
 
         this.curlProgram.bind();
         gl.uniform2f(this.curlProgram.uniforms.texelSize, this.velocity.texelSizeX, this.velocity.texelSizeY);
@@ -670,87 +788,75 @@ export class Fluid2dGpu {
         gl.uniform1f(this.vorticityProgram.uniforms.dt, dt);
         this.blit(this.velocity.write);
         this.velocity.swap();
+    }
 
-        this.divergenceProgram.bind();
-        gl.uniform2f(this.divergenceProgram.uniforms.texelSize, this.velocity.texelSizeX, this.velocity.texelSizeY);
-        gl.uniform1i(this.divergenceProgram.uniforms.uVelocity, this.velocity.read.attach(0));
-        this.blit(this.divergence);
-
-        this.clearProgram.bind();
-        gl.uniform1i(this.clearProgram.uniforms.uTexture, this.pressure.read.attach(0));
-        gl.uniform1f(this.clearProgram.uniforms.value, this.config.pressure);
-        this.blit(this.pressure.write);
-        this.pressure.swap();
-
-        this.pressureProgram.bind();
-        gl.uniform2f(this.pressureProgram.uniforms.texelSize, this.velocity.texelSizeX, this.velocity.texelSizeY);
-        gl.uniform1i(this.pressureProgram.uniforms.uDivergence, this.divergence.attach(0));
-        for (let i = 0; i < this.config.pressureIterations; ++i) {
-            gl.uniform1i(this.pressureProgram.uniforms.uPressure, this.pressure.read.attach(1));
-            this.blit(this.pressure.write);
-            this.pressure.swap();
+    diffuse(diff: number, dt:number, iterations: number, target: DoubleFbo) {
+        if(diff <= 0.0) {
+            return;
         }
+        const gl = this.gl;
+        this.solveProgram.bind();
+        const a = dt * diff;
+        gl.uniform2f(this.solveProgram.uniforms.texelSize, target.texelSizeX, target.texelSizeY);
+        gl.uniform2f(this.solveProgram.uniforms.uC, a, 1.0 / (1.0 + 4.0 * a));
+        gl.uniform1i(this.solveProgram.uniforms.uObstacleC, this.obstacleC.read.attach(1));
+        gl.uniform1i(this.solveProgram.uniforms.uObstacleN, this.obstacleN.read.attach(2));
+        for (let i = 0; i < iterations; ++i) {
+            gl.uniform1i(this.solveProgram.uniforms.uSource, target.read.attach(0));
+            this.blit(target.write);
+            target.swap();
+        }
+    }
 
-        this.gradientSubtractProgram.bind();
-        gl.uniform2f(this.gradientSubtractProgram.uniforms.texelSize, this.velocity.texelSizeX, this.velocity.texelSizeY);
-        gl.uniform1i(this.gradientSubtractProgram.uniforms.uPressure, this.pressure.read.attach(0));
-        gl.uniform1i(this.gradientSubtractProgram.uniforms.uVelocity, this.velocity.read.attach(1));
-        this.blit(this.velocity.write);
-        this.velocity.swap();
+    step(dt: number) {
+        const gl = this.gl;
+        gl.disable(gl.BLEND);
+
+        this.createObstacleN();
 
         this.advectionProgram.bind();
         gl.uniform2f(this.advectionProgram.uniforms.texelSize, this.velocity.texelSizeX, this.velocity.texelSizeY);
-        //if (!ext.supportLinearFiltering)
-        //    gl.uniform2f(this.advectionProgram.uniforms.dyeTexelSize, this.velocity.texelSizeX, this.velocity.texelSizeY);
         let velocityId = this.velocity.read.attach(0);
         gl.uniform1i(this.advectionProgram.uniforms.uVelocity, velocityId);
         gl.uniform1i(this.advectionProgram.uniforms.uSource, velocityId);
+        gl.uniform1i(this.advectionProgram.uniforms.uObstacleC, this.obstacleC.read.attach(2));
         gl.uniform1f(this.advectionProgram.uniforms.dt, dt);
         gl.uniform1f(this.advectionProgram.uniforms.dissipation, this.config.dissipationVelocity);
         this.blit(this.velocity.write);
         this.velocity.swap();
 
-        if(this.config.viscosity > 0.0) {
-            this.solveProgram.bind();
-            const a = dt * this.config.viscosity;
-            gl.uniform2f(this.solveProgram.uniforms.texelSize, this.velocity.texelSizeX, this.velocity.texelSizeY);
-            gl.uniform2f(this.solveProgram.uniforms.uC, a, 1.0 / (1.0 + 4.0 * a));
-            for (let i = 0; i < 20; ++i) {
-                gl.uniform1i(this.solveProgram.uniforms.uSource, this.velocity.read.attach(0));
-                this.blit(this.velocity.write);
-                this.velocity.swap();
-            }
-        }
-
         this.advectionProgram.bind();
-        //if (!ext.supportLinearFiltering)
-        //    gl.uniform2f(advectionProgram.uniforms.dyeTexelSize, dye.texelSizeX, dye.texelSizeY);
+        gl.uniform2f(this.advectionProgram.uniforms.texelSize, this.velocity.texelSizeX, this.velocity.texelSizeY);
         gl.uniform1i(this.advectionProgram.uniforms.uVelocity, this.velocity.read.attach(0));
         gl.uniform1i(this.advectionProgram.uniforms.uSource, this.dye.read.attach(1));
+        gl.uniform1i(this.advectionProgram.uniforms.uObstacleC, this.obstacleC.read.attach(2));
+        gl.uniform1f(this.advectionProgram.uniforms.dt, dt);
         gl.uniform1f(this.advectionProgram.uniforms.dissipation, this.config.dissipationDensity);
         this.blit(this.dye.write);
         this.dye.swap();
 
-        if(this.config.diffusion > 0) {
-            this.solveProgram.bind();
-            const A_ = dt * this.config.diffusion;
-            gl.uniform2f(this.solveProgram.uniforms.texelSize, this.dye.texelSizeX, this.dye.texelSizeY);
-            gl.uniform2f(this.solveProgram.uniforms.uC, A_, 1.0 / (1.0 + 4.0 * A_));
-            for (let i = 0; i < 20; ++i) {
-                gl.uniform1i(this.solveProgram.uniforms.uSource, this.dye.read.attach(0));
-                this.blit(this.dye.write);
-                this.dye.swap();
-            }
-        }
+        this.diffuse(this.config.viscosity, dt, 20, this.velocity);
+        this.diffuse(this.config.diffusion, dt, 20, this.dye);
+
+        this.vorticity(dt);
+
+        this.project();
     }
 
+    N = 0;
     update(dt: number) {
         dt *= this.timeScale;
         if(dt > 0.0) {
             this.updateBrush(dt);
-            // if(this.N++ < 10) {
-            //this.splat(Math.random(), Math.random(), Math.random() * 100 - 50, Math.random() * 100 - 50, new Vec4(Math.random(), 0, Math.random(), 1));
-            // }
+            if(this.N++ < 10) {
+                //this.splat(Math.random(), Math.random(), Math.random() * 100 - 50, Math.random() * 100 - 50, new Vec4(Math.random(), 0, Math.random(), 1));
+
+                let x = Math.random();
+                let y = Math.random();
+                for(let i = 0; i < 10; ++i) {
+                    this.splatObstacle(x + i * this.obstacleC.texelSizeX, y);
+                }
+            }
             this.step(dt);
         }
 
@@ -767,6 +873,7 @@ export class Fluid2dGpu {
         //gl.uniform1i(displayMaterial.uniforms.uBloom, bloom.attach(1));
         gl.uniform1f(this.displayProgram.uniforms.uShadingK, this.config.shading);
         gl.uniform1i(this.displayProgram.uniforms.uDithering, this.ditheringTexture.attach(2));
+        gl.uniform1i(this.displayProgram.uniforms.uObstacleC, this.obstacleC.read.attach(3));
         gl.uniform2f(this.displayProgram.uniforms.ditherScale, width / this.ditheringTexture.width, height / this.ditheringTexture.height);
         this.blit(target);
     }
@@ -788,6 +895,18 @@ export class Fluid2dGpu {
         this.dye.swap();
     }
 
+    splatObstacle(u: number, v: number) {
+        const gl = this.gl;
+        this.splatProgram.bind();
+        gl.uniform1i(this.splatProgram.uniforms.uTarget, this.obstacleC.read.attach(0));
+        gl.uniform1f(this.splatProgram.uniforms.aspectRatio, this.canvas.width / this.canvas.height);
+        gl.uniform2f(this.splatProgram.uniforms.point, u, v);
+        gl.uniform3f(this.splatProgram.uniforms.color, 1.0, 1.0, 1.0);
+        gl.uniform1f(this.splatProgram.uniforms.radius, 1.0 / this.canvas.width);
+        this.blit(this.obstacleC.write);
+        this.obstacleC.swap();
+    }
+
     blit(target: Fbo | null, clear?: undefined | boolean) {
         const gl = this.gl;
         if (target == null) {
@@ -802,6 +921,16 @@ export class Fluid2dGpu {
             gl.clear(gl.COLOR_BUFFER_BIT);
         }
         gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+    }
+
+    // create cell-neighbor scale factors
+    private createObstacleN() {
+        const gl = this.gl;
+        this.obstaclesProgram.bind();
+        gl.uniform2f(this.obstaclesProgram.uniforms.texelSize, this.obstacleC.texelSizeX, this.obstacleC.texelSizeY);
+        gl.uniform1i(this.obstaclesProgram.uniforms.uObstacles, this.obstacleC.read.attach(0));
+        this.blit(this.obstacleN.write);
+        this.obstacleN.swap();
     }
 }
 
