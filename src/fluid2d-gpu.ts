@@ -1,6 +1,12 @@
 import {hue, Vec4} from "./vec4";
 import {Input} from "./input";
 
+function logToDocument(html: string) {
+    const p = document.createElement("p");
+    p.innerHTML = html;
+    document.body.prepend(p);
+}
+
 function createGLContext(canvas: HTMLCanvasElement): WebGL2RenderingContext | null {
     const params: WebGLContextAttributes = {
         alpha: false,
@@ -9,17 +15,21 @@ function createGLContext(canvas: HTMLCanvasElement): WebGL2RenderingContext | nu
         antialias: false
     };
     const gl = canvas.getContext("webgl2", params);
-    if (gl) {
-        const ext = gl.getExtension('EXT_color_buffer_float');
-        if (ext) {
-            const linearFiltering = gl.getExtension('OES_texture_float_linear');
-            if (!linearFiltering) {
-                console.warn("no linear filtering for float render targets");
-            }
-            return gl;
-        }
+    if (!gl) {
+        logToDocument("💀 <b>WebGL 2</b> is required");
+        return null;
     }
-    return null;
+    const ext = gl.getExtension('EXT_color_buffer_float');
+    if (!ext) {
+        logToDocument("😵 <b>EXT_color_buffer_float</b> is required");
+        return null;
+    }
+    const linearFiltering = gl.getExtension('OES_texture_float_linear');
+    if (!linearFiltering) {
+        logToDocument("😵‍💫 <b>OES_texture_float_linear</b> is required");
+        return null;
+    }
+    return gl;
 }
 
 type UniformMap = { [key: string]: WebGLUniformLocation | null };
