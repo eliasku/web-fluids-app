@@ -1,5 +1,7 @@
 # web-fluids-app
 
+[![Check online](https://img.shields.io/badge/Check-online-orange.svg)](https://eliasku.github.io/web-fluids-app/)
+
 Jos Stam's famous fluid solver
 
 ![cpu](cpu.gif)
