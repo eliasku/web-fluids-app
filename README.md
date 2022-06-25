@@ -1,6 +1,7 @@
 # web-fluids-app
 
 [![Check online](https://img.shields.io/badge/Check-online-orange.svg)](https://eliasku.github.io/web-fluids-app/)
+[![Twitter](https://img.shields.io/twitter/follow/eliaskuvoice.svg?style=flat&label=Follow&logoColor=white&color=1da1f2&logo=twitter)](https://twitter.com/eliaskuvoice)
 
 Jos Stam's famous fluid solver
 
